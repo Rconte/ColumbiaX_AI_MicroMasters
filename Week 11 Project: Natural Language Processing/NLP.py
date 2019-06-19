@@ -1,52 +1,21 @@
 import csv
 import pandas as pd
 import numpy as np
+import time 
 import os
+import time 
 from sklearn.feature_extraction.text import CountVectorizer 
 from sklearn.feature_extraction.text import TfidfTransformer,TfidfVectorizer
 from sklearn.linear_model import SGDClassifier
 
+#++++++++++++++++++++++++PREPROCESSING PHASE++++++++++++++++++++++++++++++++++++++++
 
+
+def aid(list_of_replaced):
+
+    proc = ' '.join([char for char in list_of_replaced if char.lower() not in stopwords])
     
-train_path = "../resource/lib/publicdata/aclImdb/train/" # use terminal to ls files under this directory
-test_path = "../resource/lib/publicdata/imdb_te.csv" # test data for grade evaluation
-
-def imdb_data_preprocess(inpath, outpath="./", name="imdb_tr.csv", mix=False):
-
-    global stopwords
-    stopwords = grab_stopwords('stopwords.en.txt')
-
-    ind,text,rating = [],[],[]
-    index =  0 
-
-    for filename in os.listdir(inpath+"pos"):
-        data = open(inpath+"pos/"+filename, 'r' , encoding="ISO-8859-1").read()
-        data = preprocesstext(data)
-        data = removestops(data, stopwords)
-        
-        ind.append(index)
-        text.append(data)
-        rating.append("1")
-        index+= 1
-
-    for filename in os.listdir(inpath+"neg"):
-        data = open(inpath+"neg/"+filename, 'r' , encoding="ISO-8859-1").read()
-        data = preprocesstext(data)
-        data = removestops(data, stopwords)
-        ind.append(index)
-        text.append(data)
-        rating.append("0")
-        index += 1
-
-    Dataset = list(zip(ind,text,rating))
-    
-    if mix:
-        np.random.shuffle(Dataset)
-
-    df = pd.DataFrame(data = Dataset, columns=['row_Number', 'text', 'polarity'])
-    df.to_csv(outpath+name, index=False, header=True)
-
-#try with and without
+    return proc
 
 def preprocesstext(corpus):
 
@@ -56,178 +25,261 @@ def preprocesstext(corpus):
     for character in characters:
         replaced = replaced.replace(character,'')
     replacelist = replaced.split()
-    processed = ' '.join([char for char in replacelist if char.lower() not in stopwords])
-    #processed = procs(replacelist,stopwords)
+    processed = aid(replacelist)
+    
     return processed 
 
 def grab_stopwords(filename):
     
     stops = open(filename,'r',encoding = 'ISO-8859-1').read()
     stops = stops.split('\n')
+    print('GRABBED STOPWORDS..')
     return stops
 
 def removestops(sent,stops):
     
     words = sent.split()
     result = [word for word in words if word.lower() not in stopwords]
+    
     final = ' '.join(result)
+   
     return final
 
-    
-def process_data(data,process_type):
-    
-    if process_type == 'unigram':
-        unigram_vectorizer = CountVectorizer()
-        unigram_vectorizer = unigram_vectorizer.fit(data)
-        print(process_type)
-        return unigram_vectorizer
-    elif process_type == 'bigram':
-        ngram = 2
-        bigram_vectorizer = CountVectorizer(ngram_range=(1,ngram))
-        bigram_vectorizer = bigram_vectorizer.fit(data)
-        print(process_type)
-        return bigram_vectorizer
-  
+def imdb_data_preprocess(inpath, outpath="./", name="imdb_tr.csv", mix=False):
+    '''process imdb data --- Implement this module to extract
+    and combine text files under train_path directory into 
+    imdb_tr.csv. Each text file in train_path should be stored 
+    as a row in imdb_tr.csv. And imdb_tr.csv should have two 
+    columns, "text" and label'''
 
-def process_data_tfidf(data, process_type):
-    if process_type == 'unigram':
-        ngram = 1
-        transformer = TfidfTransformer()
-        transformer = transformer.fit(data)
-        return transformer
+    global stopwords
+    
+
+    ind,text,rating = [],[],[]
+    index =  0 
+    stopwords = grab_stopwords('stopwords.en.txt')
+    
+    for filename in os.listdir(inpath+"pos"):
         
-    elif process_type == 'bigram':
-        ngram = 1
-        transformer = TfidfTransformer()
-        transformer = transformer.fit(data)
-        return transformer
+        csv_file = open(inpath+"pos/"+filename, 'r' , encoding="ISO-8859-1").read()
+        csv_file = preprocesstext(csv_file)
+        csv_file = removestops(csv_file, stopwords)
+        
+        
+        ind.append(index)
+        text.append(csv_file)
+        rating.append("1")
+        index+= 1
+
+    for filename in os.listdir(inpath+"neg"):
+        
+        csv_file = open(inpath+"neg/"+filename, 'r' , encoding="ISO-8859-1").read()
+        csv_file = preprocesstext(csv_file)
+        csv_file = removestops(csv_file, stopwords)
+        
+        ind.append(index)
+        text.append(csv_file)
+        rating.append("0")
+        index += 1
+
+    print('PROCESSED TEXT BY REMOVING STOPWORDS,REMOVED SPACES AND CHARACTERS..')
+
+    all_data = list(zip(ind,text,rating))
+    
+    if mix == True:
+        print('MIXED')
+        np.random.shuffle(all_data)
+        
+    else:
+        print('NOT MIXED')
+        pass
+
+    dataframe = pd.DataFrame(data = all_data, columns=['row_Number', 'text', 'polarity'])
+    dataframe.to_csv(outpath+name, index=False, header=True)
+
 
 def grab_test_data(name= 'imdb_tr.csv'):
-    
+    '''get training data'''
+    #grabs the test data from the imdb_tr csv file
     data = pd.read_csv(name,header = 0, encoding ='ISO-8859-1' )
+    print('Test data snippet'.upper())
+    print(data.head())
+    
     X = data['text']
+    print('SUCCESSFULLY GRABBED TEST DATA')
+    
     return X
 
+#grabs the training data from the imdb_tr csv file
 def grab_train_data(name = 'imdb_tr.csv'):
     
     data = pd.read_csv(name,header = 0, encoding ='ISO-8859-1' )
+    print('Data head snippet'.upper()) #sanity check
+    print(data.head())
     X = data['text']
     Y = data['polarity']
+    
+    print('SUCCESSFULLY GRABBED TRAINING DATA')
+    
     return X,Y   
 
+def write(name, data):
+    '''write text file '''
 
-def stochastic_descent(Xtrain, Ytrain, Xtest):
-    from sklearn.linear_model import SGDClassifier 
-    clf = SGDClassifier(loss="hinge", penalty="l1")
-    print ("SGD Fitting")
-    clf.fit(Xtrain, Ytrain)
-    print ("SGD Predicting")
-    Ytest = clf.predict(Xtest)
-    return Ytest
-
-def write_txt(data, name):
     with open(name,'w',newline = '') as output:
         filewriter = csv.writer(output)
         for result in data:
             filewriter.writerow([result])
+    print('...')
+
+#++++++++++++++++++++++++CHOOSE PROCESS TYPE (UNIGRAM,BIGRAM,TFIDF UNI OR BI)++++++++++++++++++++++++++++++++++++++++
+#applies countvectorizer, checks whether we want to process data with unigram or bigram.
+def process_data(data,process_type):
+   
+    '''Process unigram and bigram data'''
+
+    #go for unigram
+    
+    if process_type == 'unigram':
+        unigram_vectorizer = CountVectorizer()
+        unigram_vectorizer = unigram_vectorizer.fit(data)
+        print(process_type.upper(),'THROUGH..')
+        #returns unigram vectorizer..
+        
+        return unigram_vectorizer
+    
+    #go for bigram
+    elif process_type == 'bigram':
+        ngram = 2
+        bigram_vectorizer = CountVectorizer(ngram_range=(1,ngram))
+        bigram_vectorizer = bigram_vectorizer.fit(data)
+        print(process_type.upper(),'THROUGH..')
+        #return bigram vectorizer..
+        
+        return bigram_vectorizer
+  
+#need to rework this one, it might be incorrect
+
+def process_data_tfidf(data):
+    '''Process data TFIDF'''
+
+    #use transformer or vectorizer? vectorizer gives out an error when i try to process it in the same way   
+    #Followup: since we are using the old test and training data, already processed through the process_data function,
+    #we are only transforming the old data and using the tfidf transformer
+
+    transformer = TfidfTransformer()
+    transformer = transformer.fit(data)
+    print('TFIDF PROCESSING THROUGH..')
+    
+    return transformer
 
 
-if __name__ == "__main__":
-    import time
+#applies stochastic gradient descent
+def SGD(X_train, Y_train, X_test):
+    '''Stochastic gradient descend'''
+    
+    clf = SGDClassifier(loss="hinge", penalty="l1",max_iter = 10) #use penalty = l1 and loss = hinge
+    clf.fit(X_train, Y_train)
+    Y_test = clf.predict(X_test)
+    print('SGD APPLICATION SUCCESSFUL')
+    
+    return Y_test
+
+
+def main():
+
+    global stopwords
+    
+    train_path = "../resource/lib/publicdata/aclImdb/train/" # use terminal to ls files under this directory
+    test_path = "../resource/lib/publicdata/imdb_te.csv" # test data for grade evaluation
+
+    print('FASE 1 - PREPROCESSING DATA FOR EVALUATION')
+    
+    imdb_data_preprocess(inpath=train_path, mix=False)
+    [X_train, Y_train] = grab_train_data()
+    X_test = grab_test_data(name=test_path)
+    
+    print('FASE 1 - COMPLETE')
+    print('\n')
+    print('FASE 2 - UNIGRAM PROCESSING')
+
+    #train a SGD classifier using unigram representation,
+    #predict sentiments on imdb_te.csv, and write output to
+    #unigram.output.txt
     start = time.time()
-    print ("Preprocessing the training_data--")
-    imdb_data_preprocess(inpath=train_path, mix=True)
-    print ("Done with preprocessing. Now, will retreieve the training data in the required format")
-    [Xtrain_text, Ytrain] = grab_train_data()
-    print ("Retrieved the training data. Now will retrieve the test data in the required format")
-    Xtest_text = grab_test_data(name=test_path)
-    print ("Retrieved the test data. Now will initialize the model \n\n")
-
-
-    print ("-----------------------ANALYSIS ON THE INSAMPLE DATA (TRAINING DATA)---------------------------")
-    uni_vectorizer = process_data(Xtrain_text,process_type = 'unigram')
-    print ("Fitting the unigram model")
-    Xtrain_uni = uni_vectorizer.transform(Xtrain_text)
-    print ("After fitting ")
+    unigram_vectorizer = process_data(X_train,process_type = 'unigram')
+    X_train_unigram = unigram_vectorizer.transform(X_train)
+    X_test_unigram = unigram_vectorizer.transform(X_test)
+    Y_test_unigram = SGD(X_train_unigram, Y_train, X_test_unigram)
     
-    print ("\n")
-    print ("-----------------------ANALYSIS ON THE TEST DATA ---------------------------")
-    print ("Unigram Model on the Test Data--")
-    Xtest_uni = uni_vectorizer.transform(Xtest_text)
-    print ("Applying the stochastic descent")
-    Ytest_uni = stochastic_descent(Xtrain_uni, Ytrain, Xtest_uni)
-    write_txt(Ytest_uni, name="unigram.output.txt")
-    print ("Done with  stochastic descent")
-    print ("\n")
-
-
-    #++++++++++++++++++++++++++++++++++++++++++++++
+    print('...WRITING....')
+    write("unigram.output.txt",Y_test_unigram)
+    end = time.time()
     
-    bi_vectorizer = process_data(Xtrain_text,process_type = 'bigram')
-    print ("Fitting the bigram model")
-    Xtrain_bi = bi_vectorizer.transform(Xtrain_text)
-    print ("After fitting ")
-    #print ("Applying the stochastic descent")
-    #Y_bi = stochastic_descent(Xtrain_bi, Ytrain, Xtrain_bi)
-    #print ("Done with  stochastic descent")
-    #print ("Accuracy for the Bigram Model is ", accuracy(Ytrain, Y_bi))
-    print ("\n")
+    print('FASE 2 - COMPLETE')
+    print('elapsed : ', end - start)
+    print('\n')
+    print('FASE 3 - BIGRAM PROCESSING')
+ 
+    #train a SGD classifier using bigram representation,
+    #predict sentiments on imdb_te.csv, and write output to
+    #bigram.output.txt
+    start = time.time()
+    bigram_vectorizer = process_data(X_train,process_type = 'bigram')
+    X_train_bigram = bigram_vectorizer.transform(X_train)
+    X_test_bigram = bigram_vectorizer.transform(X_test)
+    Y_test_bigram = SGD(X_train_bigram, Y_train, X_test_bigram)
+    
+    print('...WRITING....')
+    write("bigram.output.txt",Y_test_bigram)
+    end = time.time()
+    print('FASE 3 - COMPLETE')
+    print('elapsed :', end -start)
+    print('\n')
+    print('FASE 4 - TFIDF UNIGRAM PROCESSING')
+    
+    #train a SGD classifier using unigram representation
+    #with tf-idf, predict sentiments on imdb_te.csv, and write 
+    #output to unigramtfidf.output.txt
+    start = time.time()
+    unigram_transformer_tifidf = process_data_tfidf(X_train_unigram)
+    X_train_tfidf_unigram = unigram_transformer_tifidf.transform(X_train_unigram)
+    #uses the unigram X test to obtain the tfidf version using transformer..
+    X_test_tfidf_unigram = unigram_transformer_tifidf.transform(X_test_unigram)
+    Y_test_tfidf_unigram = SGD(X_train_tfidf_unigram, Y_train, X_test_tfidf_unigram)
+    
+    print('...WRITING....')
+    write("unigramtfidf.output.txt",Y_test_tfidf_unigram)
+    end = time.time()
+    print('FASE 4 - COMPLETE')
+    print('elapsed:', end - start)
+    print('\n')
+    print('FASE 5 - TFIDF BIGRAM PROCESSING')
+    
 
-    uni_tfidf_transformer = process_data_tfidf(Xtrain_uni,process_type = 'unigram')
-    print ("Fitting the tfidf for unigram model")
-    Xtrain_tf_uni = uni_tfidf_transformer.transform(Xtrain_uni)
-    print ("After fitting TFIDF")
-    #print ("Applying the stochastic descent")
-    #Y_tf_uni = stochastic_descent(Xtrain_tf_uni, Ytrain, Xtrain_tf_uni)
-    #print ("Done with  stochastic descent")
-    #print ("Accuracy for the Unigram TFIDF Model is ", accuracy(Ytrain, Y_tf_uni))
-    print ("\n")
-
-
-    bi_tfidf_transformer = process_data_tfidf(Xtrain_bi,process_type = 'bigram')
-    print ("Fitting the tfidf for bigram model")
-    Xtrain_tf_bi = bi_tfidf_transformer.transform(Xtrain_bi)
-    print ("After fitting TFIDF")
-    #print ("Applying the stochastic descent")
-    #Y_tf_bi = stochastic_descent(Xtrain_tf_bi, Ytrain, Xtrain_tf_bi)
-    #print ("Done with  stochastic descent")
-    #print ("Accuracy for the Unigram TFIDF Model is ", accuracy(Ytrain, Y_tf_bi))
-    print ("\n")
-
-
-    print ("-----------------------ANALYSIS ON THE TEST DATA ---------------------------")
-    print ("Unigram Model on the Test Data--")
-    Xtest_uni = uni_vectorizer.transform(Xtest_text)
-    print ("Applying the stochastic descent")
-    Ytest_uni = stochastic_descent(Xtrain_uni, Ytrain, Xtest_uni)
-    write_txt(Ytest_uni, name="unigram.output.txt")
-    print ("Done with  stochastic descent")
-    print ("\n")
-
-
-    print ("Bigram Model on the Test Data--")
-    Xtest_bi = bi_vectorizer.transform(Xtest_text)
-    print ("Applying the stochastic descent")
-    Ytest_bi = stochastic_descent(Xtrain_bi, Ytrain, Xtest_bi)
-    write_txt(Ytest_bi, name="bigram.output.txt")
-    print ("Done with  stochastic descent")
-    print ("\n")
-
-    print ("Unigram TF Model on the Test Data--")
-    Xtest_tf_uni = uni_tfidf_transformer.transform(Xtest_uni)
-    print ("Applying the stochastic descent")
-    Ytest_tf_uni = stochastic_descent(Xtrain_tf_uni, Ytrain, Xtest_tf_uni)
-    write_txt(Ytest_tf_uni, name="unigramtfidf.output.txt")
-    print ("Done with  stochastic descent")
-    print ("\n")
-
-    print ("Bigram TF Model on the Test Data--")
-    Xtest_tf_bi = bi_tfidf_transformer.transform(Xtest_bi)
-    print ("Applying the stochastic descent")
-    Ytest_tf_bi = stochastic_descent(Xtrain_tf_bi, Ytrain, Xtest_tf_bi)
-    write_txt(Ytest_tf_bi, name="bigramtfidf.output.txt")
-    print ("Done with  stochastic descent")
-    print ("\n")
-
+    #train a SGD classifier using bigram representation
+    #with tf-idf, predict sentiments on imdb_te.csv, and write 
+    #output to bigramtfidf.output.txt
+    start = time.time()
+    bigram_transformer_tfidf = process_data_tfidf(X_train_bigram)
+    X_train_tfidf_bigram = bigram_transformer_tfidf.transform(X_train_bigram)
+    #uses the bigram X test to obtain the tfidf version using transformer..
+    X_test_tfidf_bigram = bigram_transformer_tfidf.transform(X_test_bigram)
+    Y_test_tfidf_bigram = SGD(X_train_tfidf_bigram, Y_train, X_test_tfidf_bigram)
+    
+    print('...WRITING....')
+    write("bigramtfidf.output.txt",Y_test_tfidf_bigram)
+    end = time.time()
+    print('FASE 5- COMPLETE')
+    print('elapsed:', end-start)
+    print('PROGRAM COMPLETE')
+    
+if __name__ == "__main__":
+    total_start = time.time()
+    print('program start'.upper())
+    main()
+    total_end = time.time()
+    print('total time elapsed:', total_end - total_start)
+    
     
 
